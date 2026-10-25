@@ -23,7 +23,7 @@ test.describe('Navigation', () => {
     if (await catalogPage.sortMenu.isVisible()) {
       await catalogPage.sortMenu.selectOption('price-ascending');
       await expect(page).toHaveURL(/sort_by=price-ascending/);
-
+// partha
       const prices = (await catalogPage.productGrid.prices())
         .map((price) => Number(price.replace(/[^\d.]/g, '')));
       expect(prices).toEqual([...prices].sort((a, b) => a - b));
