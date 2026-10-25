@@ -1,0 +1,524 @@
+
+
+===== src/components/header.component.ts =====
+import { type Locator, type Page } from '@playwright/test';
+
+export class HeaderComponent {
+  readonly searchLink: Locator;
+
+  constructor(private readonly page: Page) {
+    this.searchLink = page
+      .getByRole('banner')
+      .getByRole('link', { name: 'Search', exact: true });
+  }
+
+  cartSummary(count: number): Locator {
+    return this.page
+      .getByRole('banner')
+      .getByRole('link', { name: `My Cart (${count})`, exact: true });
+  }
+
+  async openSearch(): Promise<void> {
+    await this.searchLink.click();
+  }
+}
+
+
+===== src/components/product-grid.component.ts =====
+import { type Locator, type Page } from '@playwright/test';
+
+export class ProductGridComponent {
+  readonly cards: Locator;
+
+  constructor(private readonly page: Page) {
+    this.cards = page.locator('a[href*="/products/"]');
+  }
+
+  card(name: string): Locator {
+    return this.cards.filter({
+      has: this.page.getByRole('heading', { name, exact: true }),
+    });
+  }
+
+  heading(name: string): Locator {
+    return this.card(name).getByRole('heading', { name, exact: true });
+  }
+
+  async openProduct(name: string): Promise<void> {
+    await this.card(name).click();
+  }
+
+  async names(): Promise<string[]> {
+    return this.cards.getByRole('heading', { level: 3 }).allInnerTexts();
+  }
+
+  async prices(): Promise<string[]> {
+    return this.cards.getByRole('heading', { level: 4 }).allInnerTexts();
+  }
+}
+
+
+===== src/fixtures/test.fixture.ts =====
+import { test as base, expect } from '@playwright/test';
+import { CartPage } from '../pages/cart.page';
+import { CatalogPage } from '../pages/catalog.page';
+import { CollectionsPage } from '../pages/collections.pages';
+import { HomePage } from '../pages/home.page';
+import { ProductPage } from '../pages/product.page';
+import { SearchPage } from '../pages/search.page';
+
+type AppFixtures = {
+  cartPage: CartPage;
+  catalogPage: CatalogPage;
+  collectionsPage: CollectionsPage;
+  homePage: HomePage;
+  productPage: ProductPage;
+  searchPage: SearchPage;
+};
+
+export const test = base.extend<AppFixtures>({
+  cartPage: async ({ page }, use) => use(new CartPage(page)),
+  catalogPage: async ({ page }, use) => use(new CatalogPage(page)),
+  collectionsPage: async ({ page }, use) => use(new CollectionsPage(page)),
+  homePage: async ({ page }, use) => use(new HomePage(page)),
+  productPage: async ({ page }, use) => use(new ProductPage(page)),
+  searchPage: async ({ page }, use) => use(new SearchPage(page)),
+});
+
+export { expect };
+
+
+===== src/pages/cart.page.ts =====
+import { type Locator, type Page } from '@playwright/test';
+
+export class CartPage {
+  readonly quantityInput: Locator;
+  readonly updateButton: Locator;
+  readonly emptyMessage: Locator;
+
+  constructor(private readonly page: Page) {
+    this.quantityInput = page.locator('#cart input[id^="updates_"]');
+    this.updateButton = page.getByRole('button', { name: 'Update', exact: true });
+    this.emptyMessage = page.getByText(/cart is currently empty/i);
+  }
+
+  itemImage(name: string): Locator {
+    return this.page.getByRole('img', { name: new RegExp(name, 'i') });
+  }
+
+  unitPrice(value: string): Locator {
+    return this.page
+      .locator('#cart .price:visible')
+      .filter({ hasText: value });
+  }
+
+  total(value: string): Locator {
+    return this.page.getByRole('heading', {
+      name: `Total ${value}`,
+      exact: true,
+    });
+  }
+
+  async goto(): Promise<void> {
+    await this.page.goto('/cart');
+  }
+
+  async setQuantity(value: string): Promise<void> {
+    await this.quantityInput.fill(value);
+  }
+
+  async update(): Promise<void> {
+    await this.updateButton.click();
+  }
+}
+
+
+===== src/pages/catalog.page.ts =====
+import { type Locator, type Page } from '@playwright/test';
+import { ProductGridComponent } from '../components/product-grid.component';
+
+export class CatalogPage {
+  readonly heading: Locator;
+  readonly sortMenu: Locator;
+  readonly productGrid: ProductGridComponent;
+
+  constructor(private readonly page: Page) {
+    this.heading = page.getByRole('heading', { name: 'Products', exact: true });
+    this.sortMenu = page.locator('select[name="sort_by"]');
+    this.productGrid = new ProductGridComponent(page);
+  }
+
+  async openFromSidebar(): Promise<void> {
+    await this.page.getByRole('link', { name: 'Catalog', exact: true }).click();
+  }
+
+  async goto(): Promise<void> {
+    await this.page.goto('/collections/all');
+  }
+}
+
+
+===== src/pages/collections.pages.ts =====
+import { type Page } from '@playwright/test';
+import { ProductGridComponent } from '../components/product-grid.component';
+
+export class CollectionsPage {
+  readonly productGrid: ProductGridComponent;
+
+  constructor(private readonly page: Page) {
+    this.productGrid = new ProductGridComponent(page);
+  }
+
+  async goto(): Promise<void> {
+    await this.page.goto('/collections');
+  }
+
+  async openCollection(name: string): Promise<void> {
+    await this.page.getByRole('link', { name: new RegExp(name, 'i') }).click();
+  }
+}
+
+
+===== src/pages/home.page.ts =====
+import { type Page } from '@playwright/test';
+import { HeaderComponent } from '../components/header.component';
+import { ProductGridComponent } from '../components/product-grid.component';
+
+export class HomePage {
+  readonly header: HeaderComponent;
+  readonly productGrid: ProductGridComponent;
+
+  constructor(private readonly page: Page) {
+    this.header = new HeaderComponent(page);
+    this.productGrid = new ProductGridComponent(page);
+  }
+
+  async goto(): Promise<void> {
+    await this.page.goto('/');
+  }
+
+  async openProduct(name: string): Promise<void> {
+    await this.productGrid.openProduct(name);
+  }
+}
+
+
+===== src/pages/product.page.ts =====
+import { type Locator, type Page } from '@playwright/test';
+
+export class ProductPage {
+  readonly description: Locator;
+  readonly addToCartButton: Locator;
+  readonly soldOutLabel: Locator;
+
+  constructor(private readonly page: Page) {
+    this.description = page.getByText(/This area is populated by the product description/);
+    this.addToCartButton = page.getByRole('button', { name: /Add\s+to\s+Cart/i });
+    this.soldOutLabel = page.getByText('Sold Out', { exact: true });
+  }
+
+  heading(name: string): Locator {
+    return this.page.getByRole('heading', { name, exact: true });
+  }
+
+  price(value: string): Locator {
+    return this.page.getByRole('heading', { name: value, exact: true });
+  }
+
+  async addToCart(): Promise<void> {
+    await this.addToCartButton.click();
+  }
+}
+
+
+===== src/pages/search.page.ts =====
+import { type Locator, type Page } from '@playwright/test';
+import { HeaderComponent } from '../components/header.component';
+
+export class SearchPage {
+  readonly header: HeaderComponent;
+  readonly searchInput: Locator;
+  readonly productCards: Locator;
+  readonly noResultsMessage: Locator;
+
+  constructor(private readonly page: Page) {
+    this.header = new HeaderComponent(page);
+    this.searchInput = page.getByRole('textbox', { name: 'Search' });
+    this.productCards = page.locator('a[href*="/products/"]');
+    this.noResultsMessage = page.getByText(/No results found for/i);
+  }
+
+  productHeading(name: string): Locator {
+    return this.page.getByRole('heading', { name, exact: true });
+  }
+
+  async searchFor(term: string): Promise<void> {
+    await this.searchInput.fill(term);
+    await this.searchInput.press('Enter');
+  }
+}
+
+
+===== tests/UI_Basics.ts =====
+
+
+
+
+===== tests/data/search.data.ts =====
+
+
+
+===== tests/e2e/storefront/add-to-cart.spec.ts =====
+import { test, expect } from '../../../src/fixtures/test.fixture';
+
+test.describe('Add to Cart', () => {
+  test('updates quantity and removes the item at zero', async ({
+    page, homePage, productPage, cartPage,
+  }) => {
+    await homePage.goto();
+    await homePage.openProduct('Grey jacket');
+
+    const productName = await productPage.heading('Grey jacket').innerText();
+    const productPrice = await productPage.price('£55.00').innerText();
+    expect(productName).toBe('Grey jacket');
+    expect(productPrice).toBe('£55.00');
+
+    await expect(homePage.header.cartSummary(0)).toBeVisible();
+    await productPage.addToCart();
+    await expect(homePage.header.cartSummary(1)).toBeVisible();
+
+    // The header summary changes the hash; it does not navigate to the cart.
+    await homePage.header.cartSummary(1).click();
+    await expect(page).toHaveURL(/#$/);
+    await cartPage.goto();
+
+    await expect(page).toHaveURL(/\/cart/);
+    await expect(homePage.header.cartSummary(1)).toBeVisible();
+    await expect(cartPage.itemImage(productName)).toBeVisible();
+    await expect(cartPage.unitPrice(productPrice).first()).toBeVisible();
+    await expect(cartPage.quantityInput).toHaveValue('1');
+
+    await cartPage.setQuantity('2');
+    await cartPage.update();
+    await expect(cartPage.quantityInput).toHaveValue('2');
+    await expect(cartPage.total('£110.00')).toBeVisible();
+
+    await cartPage.setQuantity('0');
+    await cartPage.update();
+    await expect(cartPage.emptyMessage).toBeVisible();
+    await expect(homePage.header.cartSummary(0)).toBeVisible();
+  });
+});
+
+
+===== tests/e2e/storefront/navigation.spec.ts =====
+import { test, expect } from '../../../src/fixtures/test.fixture';
+
+const catalogProducts = [
+  'Black heels',
+  'Bronze sandals',
+  'Brown Shades',
+  'Grey jacket',
+  'Noir jacket',
+  'Striped top',
+  'White sandals',
+];
+
+test.describe('Navigation', () => {
+  test('navigates Catalog, product details, history, and Frontpage', async ({
+    page, homePage, catalogPage, collectionsPage, productPage,
+  }) => {
+    await homePage.goto();
+    await catalogPage.openFromSidebar();
+
+    await expect(page).toHaveURL(/\/collections\/all/);
+    await expect(catalogPage.heading).toBeVisible();
+
+    if (await catalogPage.sortMenu.isVisible()) {
+      await catalogPage.sortMenu.selectOption('price-ascending');
+      await expect(page).toHaveURL(/sort_by=price-ascending/);
+
+      const prices = (await catalogPage.productGrid.prices())
+        .map((price) => Number(price.replace(/[^\d.]/g, '')));
+      expect(prices).toEqual([...prices].sort((a, b) => a - b));
+    }
+
+    for (const name of catalogProducts) {
+      await expect(catalogPage.productGrid.heading(name)).toBeVisible();
+    }
+
+    await catalogPage.productGrid.openProduct('Noir jacket');
+    await expect(productPage.heading('Noir jacket')).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/collections\/all(?:\?.*)?$/);
+    for (const name of catalogProducts) {
+      await expect(catalogPage.productGrid.heading(name)).toBeVisible();
+    }
+
+    await collectionsPage.goto();
+    await collectionsPage.openCollection('Frontpage');
+    await expect(page).toHaveURL(/\/collections\/frontpage/);
+    await expect(collectionsPage.productGrid.cards.first()).toBeVisible();
+  });
+});
+
+
+===== tests/e2e/storefront/product-details.spec.ts =====
+import { test, expect } from '../../../src/fixtures/test.fixture';
+
+test.describe('Product Details', () => {
+  test('checks Grey jacket details and Bronze sandals availability', async ({
+    page, homePage, catalogPage, productPage,
+  }) => {
+    await homePage.goto();
+    await homePage.openProduct('Grey jacket');
+
+    await expect(page).toHaveURL(/\/products\/grey-jacket/);
+    await expect(productPage.heading('Grey jacket')).toBeVisible();
+    await expect(page).toHaveTitle(/Grey jacket/i);
+    await expect(productPage.price('£55.00')).toBeVisible();
+    await expect(productPage.description).toBeVisible();
+    await expect(productPage.addToCartButton).toBeVisible();
+    await expect(productPage.addToCartButton).toBeEnabled();
+
+    await catalogPage.openFromSidebar();
+    await catalogPage.productGrid.openProduct('Bronze sandals');
+    await expect(productPage.heading('Bronze sandals')).toBeVisible();
+    await expect(productPage.price('£39.99')).toBeVisible();
+    await expect(productPage.addToCartButton).toBeEnabled();
+  });
+});
+
+
+===== tests/e2e/storefront/scenario-plan.spec.ts =====
+// spec: Scenarios 2, 3, and 4
+// seed: tests/e2e/storefront/search.spec.ts
+import { test, expect } from '../../../src/fixtures/test.fixture';
+
+test.describe('Product Details, Add to Cart, and Navigation', () => {
+  test('smoke-checks the generated scenarios', async ({ page, homePage }) => {
+    await homePage.goto();
+    await expect(page).toHaveTitle(/Sauce Demo/i);
+  });
+});
+
+
+===== tests/e2e/storefront/search.spec.ts =====
+import { test, expect } from '../../../src/fixtures/test.fixture';
+
+test.describe('Storefront search', () => {
+  test('finds jackets', async ({ page, homePage, searchPage }) => {
+    await homePage.goto();
+    await expect(page).toHaveTitle(/Sauce Demo/i);
+
+    await homePage.header.openSearch();
+    await expect(searchPage.searchInput).toBeVisible();
+    await searchPage.searchFor('jacket');
+
+    await expect(page).toHaveTitle(/search/i);
+    await expect(page).toHaveURL(/\/search\?.*q=jacket/);
+    await expect(searchPage.productHeading('Grey jacket')).toBeVisible();
+    await expect(searchPage.productHeading('Noir jacket')).toBeVisible();
+    // await expect(
+    //   page.getByRole('heading', { name: /sandals|heels|shades/i }),
+    // ).toHaveCount(0);
+  });
+
+  test('shows no products for an unmatched term', async ({ homePage, searchPage }) => {
+    await homePage.goto();
+    await homePage.header.openSearch();
+    await searchPage.searchFor('zzznotaproduct123');
+
+    await expect(searchPage.noResultsMessage).toBeVisible();
+    await expect(searchPage.productCards).toHaveCount(0);
+  });
+});
+
+
+===== tests/example.spec.ts =====
+// import { test, expect } from '@playwright/test';
+
+
+// test('My Test', async ({ page }) => {
+//   await page.goto('https://playwright.dev/');
+//   //Wait
+//   page.waitForLoadState('domcontentloaded');
+//   //Static dropdown
+//   const dropBox = page.locator('#id');
+//   await dropBox.selectOption('1');
+//   await expect(dropBox).toHaveValue('1');
+//   //Dynamic Dropdown
+//   const searchBox =  page.locator('#id');
+//   searchBox.fill('red');
+//   await page.waitForSelector('input');
+//   //Static wait
+//   page.waitForTimeout(10000);
+//   await page.locator('.class').filter({hasText:'RedTape'}).click();
+//   //Screenshot
+//   await page.screenshot({path:'src/screenshot',fullPage:true});
+//   //File Upload
+//   await page.getByRole('button',{name:'Upload'}).setInputFiles('src/files/pdf.pdf');
+//   //Download & Wait For Event
+//   const downLoad = await page.waitForEvent('download');
+//   await page.locator('#id').click();
+//   const newDownload = await downLoad;
+//   await newDownload.saveAs('/path/src/downloads'+newDownload.suggestedFilename());
+
+
+
+
+
+
+
+// });
+
+// test('get started link', async ({ page }) => {
+//   await page.goto('https://playwright.dev/');
+
+//   // Click the get started link.
+//   await page.getByRole('link', { name: 'Get started' }).click();
+
+//   // Expects page to have a heading with the name of Installation.
+//   await expect(page.getByRole('heading', { name: 'Installation' })).toBeVisible();
+// });
+
+
+===== tests/seed.spec.ts =====
+// import { test, expect } from '@playwright/test';
+
+// test.describe('Sauce Demo search', () => {
+//   test('searching for jacket shows the expected results', async ({ page }) => {
+//     await page.goto('https://sauce-demo.myshopify.com/');
+//     await expect(page).toHaveTitle(/Sauce Demo/i);
+
+//     await page.getByRole('link', { name: 'Search', exact: true }).first().click();
+
+//     const search = page.getByRole('textbox', { name: 'Search' });
+//     await expect(search).toBeVisible();
+//     await search.fill('jacket');
+//     await expect(search).toHaveValue('jacket');
+//     await search.press('Enter');
+
+//     // Soft assertions report both observed mismatches without stopping early.
+//     await expect.soft(page).toHaveURL(/\/search\?q=jacket/);
+//     await expect(page).toHaveTitle(/search/i);
+//     await expect(page.getByRole('heading', { name: 'Grey jacket', exact: true })).toBeVisible();
+//     await expect(page.getByRole('heading', { name: 'Noir jacket', exact: true })).toBeVisible();
+//     await expect.soft(
+//       page.getByRole('heading', { name: /sandals|heels|shades/i }),
+//     ).toHaveCount(0);
+//   });
+
+//   test('an unmatched search shows no products', async ({ page }) => {
+//     await page.goto('https://sauce-demo.myshopify.com/');
+//     await page.getByRole('link', { name: 'Search', exact: true }).first().click();
+
+//     const search = page.getByRole('textbox', { name: 'Search' });
+//     await search.fill('zzznotaproduct123');
+//     await search.press('Enter');
+
+//     await expect(page.getByText('No results found for zzznotaproduct123')).toBeVisible();
+//     await expect(page.locator('a[href*="/products/"]')).toHaveCount(0);
+//   });
+// });
