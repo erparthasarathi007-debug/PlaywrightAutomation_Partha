@@ -22,7 +22,7 @@ test.describe('Storefront search', () => {
     await homePage.goto();
     await homePage.header.openSearch();
     await searchPage.searchFor('zzznotaproduct123');
-
+// sarathi
     await expect(searchPage.noResultsMessage).toBeVisible();
     await expect(searchPage.productCards).toHaveCount(0);
   });
