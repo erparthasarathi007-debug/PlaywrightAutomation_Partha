@@ -61,8 +61,9 @@ test.describe('Scenario 5: shopping journey and network checks', () => {
     page, homePage, productPage, cartPage,
   }) => {
     await homePage.goto();
+    // rout
     await homePage.openProduct('Grey jacket');
-
+// sarathi
     await page.route('**/cart/add*', (route) =>
       route.fulfill({
         status: 500,
