@@ -26,7 +26,7 @@ test.describe('Add to Cart', () => {
     await expect(cartPage.itemImage(productName)).toBeVisible();
     await expect(cartPage.unitPrice(productPrice).first()).toBeVisible();
     await expect(cartPage.quantityInput).toHaveValue('1');
-
+// parthas arathi rout
     await cartPage.setQuantity('2');
     await cartPage.update();
     await expect(cartPage.quantityInput).toHaveValue('2');
